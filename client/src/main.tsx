@@ -7,13 +7,13 @@ import "./index.css";
 import { StrictMode } from "react";
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <ContextProvider>
-        <SocketContextProvider>
-          <App />
-        </SocketContextProvider>
-      </ContextProvider>
-    </BrowserRouter>
-  </StrictMode>
+  //<StrictMode>
+  <BrowserRouter>
+    <ContextProvider>
+      <SocketContextProvider>
+        <App />
+      </SocketContextProvider>
+    </ContextProvider>
+  </BrowserRouter>
+  //</StrictMode>
 );

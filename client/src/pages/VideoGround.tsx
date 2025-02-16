@@ -169,23 +169,6 @@ const VideoGround = () => {
   }, []);
 
   useEffect(() => {
-    const handleCameraToggle = ({ isCameraOn }: { isCameraOn: boolean }) => {
-      toast({ title: `Peer's camera is now ${isCameraOn ? "ON" : "OFF"}` });
-
-      if (!isCameraOn && remoteStream) {
-        remoteStream.getVideoTracks().forEach((track) => track.stop());
-        setRemoteStream(null);
-      }
-    };
-
-    socket?.on("camera:toggle", handleCameraToggle);
-
-    return () => {
-      socket?.off("camera:toggle", handleCameraToggle);
-    };
-  }, [socket, remoteStream]);
-
-  useEffect(() => {
     const peer = PeerService.peer;
     if (peer) {
       peer.addEventListener("track", handleTrackEvent);
