@@ -36,7 +36,7 @@ peerServer.on("error", (error) => {
 
 app.use("/peerjs", peerServer);
 
-const port = 8000;
+const port = 9000;
 
 const io = new Server(sslServer, {
   cors: {
@@ -46,6 +46,7 @@ const io = new Server(sslServer, {
   pingTimeout: 20000,
   pingInterval: 25000,
 });
+
 let totalActiveUsers = 0;
 class UserManager {
   constructor() {
@@ -63,6 +64,7 @@ class UserManager {
       ...userData,
       joinTime: Date.now(),
     });
+    console.log("added user into waiting list\n", this.waitingUsers);
   }
 
   removeWaitingUser(socketId) {
@@ -98,6 +100,7 @@ class UserManager {
       io.emit("userCount", { count: totalActiveUsers });
     }
   }
+
   getUserPartner(socketId) {
     return this.activePairs.get(socketId);
   }
@@ -131,19 +134,25 @@ function cleanWaitingList() {
 
 async function findMatch(socket) {
   try {
+    //baad me samjhenge
     cleanWaitingList();
 
+    //check if the user is already in call with someone
     if (userManager.activePairs.has(socket.id)) {
       return;
     }
+    //
 
     const availableUsers = Array.from(userManager.waitingUsers.entries())
       .filter(([id]) => id !== socket.id && io.sockets.sockets.has(id))
       .sort((a, b) => a[1].joinTime - b[1].joinTime);
 
+    console.log(availableUsers);
+
     if (availableUsers.length > 0) {
+      console.log(availableUsers[0]);
       const [partnerId, partnerData] = availableUsers[0];
-      const currentUserData = userManager.waitingUsers.get(socket.id);
+      const currentUserData = userManager.waitingUsers.get(socket.id); // my data
 
       if (!currentUserData) {
         throw new Error("Current user data not found");
@@ -159,12 +168,14 @@ async function findMatch(socket) {
         await Promise.all([
           emitWithTimeout(socket.id, "matched", {
             partnerId: partnerData.peerId,
+            partnerSocketId: partnerId,
           }).catch((error) => {
             console.error(`Failed to notify user ${socket.id}:`, error);
             throw error;
           }),
           emitWithTimeout(partnerId, "matched", {
             partnerId: currentUserData.peerId,
+            partnerSocketId: partnerId,
           }).catch((error) => {
             console.error(`Failed to notify partner ${partnerId}:`, error);
             throw error;
@@ -235,6 +246,7 @@ io.on("connection", (socket) => {
 
   socket.emit("userCount", { count: userManager.getTotalUsers() });
 
+  //* CHAT RELATED EVENTS
   socket.on("chat:message", async (data) => {
     try {
       const { message } = data;
@@ -289,6 +301,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  //* MATCH RELATED EVENTS
   socket.on("findMatch", async ({ peerId }) => {
     try {
       if (!peerId) {
@@ -334,6 +347,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  //* DISCONNECT
   socket.on("disconnect", () => {
     try {
       const email = userManager.socketIdToEmail.get(socket.id);
@@ -372,7 +386,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // WebRTC signaling with error handling
+  //* WEB RTC EVENTS
   socket.on("call:incoming", async ({ to: answererId, offer }) => {
     try {
       await emitWithTimeout(answererId, "call:incoming", {

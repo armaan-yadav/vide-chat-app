@@ -1,15 +1,13 @@
-import { useEffect, useState, useRef } from "react";
-import Peer from "peerjs";
 import { useSocket } from "@/context/SocketProvider";
 import { toast } from "@/hooks/use-toast";
-import { Users, Video, VideoOff, Send } from "lucide-react";
-
-interface ChatMessage {
-  senderId: string;
-  message: string;
-  timestamp: number;
-  isMe?: boolean;
-}
+import { ChatMessage } from "@/types/types";
+import { Users } from "lucide-react";
+import Peer from "peerjs";
+import { useEffect, useRef, useState } from "react";
+import Chat from "./components/Chat";
+import Controls from "./components/Controls";
+import MyVideo from "./components/MyVideo";
+import PartnerVideo from "./components/PartnerVideo";
 
 interface Stream extends MediaStream {
   active: boolean;
@@ -35,9 +33,13 @@ const VideoChatRoulette = () => {
   const peerInstance = useRef<Peer | null>(null);
   const myStreamRef = useRef<Stream | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const typingTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   const { socket } = useSocket();
+
+  // socket ids
+  const [localSocketId, setLocalSocketId] = useState<string | undefined>();
+  const [remoteSocketId, setRemoteSocketId] = useState<string | undefined>();
 
   // Initialize video chat
   useEffect(() => {
@@ -46,7 +48,7 @@ const VideoChatRoulette = () => {
     const initializeVideoChat = async () => {
       try {
         setIsLoading(true);
-
+        //initializing peer
         const peer = new Peer({
           config: {
             iceServers: [
@@ -60,7 +62,8 @@ const VideoChatRoulette = () => {
         peer.on("open", (id) => {
           if (!mounted) return;
           setMyPeerId(id);
-          socket?.emit("findMatch", { peerId: id });
+
+          socket?.emit("findMatch", { peerId: id }); //sending my peer id
         });
 
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -115,17 +118,21 @@ const VideoChatRoulette = () => {
     };
   }, [socket]);
 
-  // Socket event handlers
+  useEffect(() => {}, []);
+
+  //* Socket event handlers
   useEffect(() => {
     if (!socket) return;
+    setLocalSocketId(socket.id);
 
     socket.on("userCount", ({ count }) => {
       setUserCount(count);
     });
 
-    socket.on("matched", ({ partnerId }) => {
+    socket.on("matched", ({ partnerId, partnerSocketId }) => {
       toast({ title: "Connected with a new partner!" });
       setPartnerId(partnerId);
+      setRemoteSocketId(partnerSocketId);
 
       if (!myStreamRef.current || !peerInstance.current) return;
       const call = peerInstance.current.call(partnerId, myStreamRef.current);
@@ -162,7 +169,7 @@ const VideoChatRoulette = () => {
     };
   }, [socket]);
 
-  // Auto-scroll chat
+  //* Auto-scroll chat
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop =
@@ -170,7 +177,7 @@ const VideoChatRoulette = () => {
     }
   }, [messages]);
 
-  // Handlers
+  //* Handlers
   const handleNext = () => {
     if (!socket) return;
     if (partnerVideoRef.current) {
@@ -228,7 +235,6 @@ const VideoChatRoulette = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-4 md:p-6">
-      {/* User Count */}
       <div className="fixed top-4 right-4 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-md">
         <Users className="w-5 h-5 text-blue-600" />
         <span className="font-medium text-gray-700">{userCount} online</span>
@@ -240,132 +246,44 @@ const VideoChatRoulette = () => {
         </h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* My Video */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-700">
-                Your Video
-              </h2>
-              <button
-                onClick={toggleVideo}
-                className="p-2 rounded-full hover:bg-gray-100"
-              >
-                {isMyVideoEnabled ? (
-                  <Video className="w-5 h-5" />
-                ) : (
-                  <VideoOff className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-            <div className="relative rounded-xl overflow-hidden shadow-lg bg-white">
-              <video
-                ref={myVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full aspect-video object-cover"
-              />
-              <div className="absolute bottom-4 left-4 bg-black/40 px-3 py-1 rounded-full text-white text-sm">
-                You
-              </div>
-            </div>
+          <div>
+            <span className="text-green-500">
+              My Socket Id : ${localSocketId}
+            </span>
+            <MyVideo
+              isMyVideoEnabled
+              myVideoRef={myVideoRef}
+              toggleVideo={toggleVideo}
+            />
           </div>
-
-          {/* Partner Video */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-700">
-              Partner's Video
-            </h2>
-            <div className="relative rounded-xl overflow-hidden shadow-lg bg-white">
-              <video
-                ref={partnerVideoRef}
-                autoPlay
-                playsInline
-                className="w-full aspect-video object-cover"
-              />
-              {!partnerId && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm">
-                  <div className="text-center space-y-3">
-                    <div className="w-16 h-16 mx-auto rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
-                    <p className="text-gray-600 font-medium">
-                      Finding a partner...
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div>
+            <span className="text-red-600">
+              Remote Socket Id : ${remoteSocketId}
+            </span>
+            <PartnerVideo
+              partnerId={partnerId}
+              partnerVideoRef={partnerVideoRef}
+            />
           </div>
-
-          {/* Chat */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-700">Chat</h2>
-            <div className="rounded-xl overflow-hidden shadow-lg bg-white flex flex-col h-[400px]">
-              <div
-                ref={chatContainerRef}
-                className="flex-1 p-4 space-y-4 overflow-y-auto"
-              >
-                {messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${
-                      msg.isMe ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[80%] rounded-xl px-4 py-2 ${
-                        msg.isMe
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      <p>{msg.message}</p>
-                      <p className="text-xs opacity-70">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {partnerIsTyping && (
-                  <div className="text-sm text-gray-500">
-                    Partner is typing...
-                  </div>
-                )}
-              </div>
-
-              <div className="p-4 border-t">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={handleTyping}
-                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                    placeholder="Type a message..."
-                    disabled={!partnerId}
-                    className="flex-1 px-4 py-2 rounded-full border focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!partnerId || !newMessage.trim()}
-                    className="p-2 rounded-full bg-blue-600 text-white disabled:opacity-50 hover:bg-blue-700"
-                  >
-                    <Send className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/*
+           //TODO fix chat component [issue] : some messages not sending 
+          // */}
+          {/* <Chat
+            chatContainerRef={chatContainerRef}
+            handleSendMessage={handleSendMessage}
+            handleTyping={handleTyping}
+            messages={messages}
+            newMessage={newMessage}
+            partnerId={partnerId}
+            partnerIsTyping={partnerIsTyping}
+          /> */}
         </div>
 
-        {/* Controls */}
-        <div className="flex justify-center">
-          <button
-            onClick={handleNext}
-            disabled={isLoading || !partnerId}
-            className="px-8 py-3 bg-blue-600 text-white rounded-full font-semibold shadow-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            Next Partner
-          </button>
-        </div>
+        <Controls
+          handleNext={handleNext}
+          isLoading={isLoading}
+          partnerId={partnerId}
+        />
       </div>
     </div>
   );

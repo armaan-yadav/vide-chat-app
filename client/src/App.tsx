@@ -3,7 +3,7 @@ import "./index.css";
 import Lobby from "./pages/Lobby";
 import VideoGround from "./pages/VideoGround";
 import { Toaster } from "./components/ui/toaster";
-import Random from "./pages/Random";
+import Random from "./pages/random/Random";
 
 const routes = (
   <Routes>

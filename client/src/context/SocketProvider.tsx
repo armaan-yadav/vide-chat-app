@@ -11,9 +11,7 @@ export const SocketContextProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
   const socket = useMemo(() => {
-    // const host = window.location.hostname; // Gets current hostname (localhost or IP)
-    // return io(`https://${host}:8000`);
-    return io(`https://192.168.0.106:8000`);
+    return io(`https://192.168.0.106:9000`);
   }, []);
   console.log(socket);
   return (
